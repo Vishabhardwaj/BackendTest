@@ -1,0 +1,49 @@
+import argparse
+import csv
+import logging
+import sys
+from typing import List, Dict
+from .client import search_pubmed, fetch_papers
+from .parser import process_paper
+
+def main():
+    parser = argparse.ArgumentParser(description="Fetch PubMed papers with industry affiliations.")
+    parser.add_argument("query", help="PubMed search query.")
+    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug logging.")
+    parser.add_argument("-f", "--file", help="Output CSV filename.")
+    args = parser.parse_args()
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+
+    logging.debug(f"Searching PubMed for query: {args.query}")
+    pmids = search_pubmed(args.query)
+    logging.debug(f"Found {len(pmids)} PMIDs.")
+
+    logging.debug("Fetching paper details...")
+    papers = fetch_papers(pmids)
+    logging.debug(f"Fetched {len(papers)} papers.")
+
+    filtered_rows: List[Dict] = []
+    for paper in papers:
+        row = process_paper(paper)
+        if row:
+            filtered_rows.append(row)
+
+    if not filtered_rows:
+        print("No papers found with industry affiliations.")
+        sys.exit(0)
+
+    if args.file:
+        with open(args.file, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=filtered_rows[0].keys())
+            writer.writeheader()
+            writer.writerows(filtered_rows)
+        print(f"Results saved to {args.file}.")
+    else:
+        writer = csv.DictWriter(sys.stdout, fieldnames=filtered_rows[0].keys())
+        writer.writeheader()
+        writer.writerows(filtered_rows)
+
+if __name__ == "__main__":
+    main()
